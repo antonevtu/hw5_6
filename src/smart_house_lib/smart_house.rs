@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::pin::Pin;
 
 pub static NAME_DEV_1: &str = "Socket 1";
 pub static NAME_DEV_2: &str = "Socket 2";
@@ -16,6 +15,7 @@ struct Room {
     devices: HashSet<String>,
 }
 
+#[derive(Debug)]
 pub enum Errors {
     RoomNotFound,
     DeviceExist,
@@ -73,25 +73,30 @@ impl SmartHouse {
         result
     }
 
-    /// Adding device to the room. If device exists, return Errors::DeviceExist
+    /// Adding device to the room. If room not exists, returns error.
+    /// If device exists, nothing happens
+    /// ```
+    /// use hw5_6::smart_house_lib::smart_house;
+    /// let mut house = smart_house::SmartHouse::new("My house");
+    /// house.add_room("Room A");
+    /// let res = house.add_device("Room A", "Socket 1");
+    /// assert_eq!(res.unwrap(), true);
+    /// ```
     pub fn  add_device(&mut self, room: &str, device: &str) -> Result<bool, Errors> {
-        self.rooms.entry(romm).and_modify(f)
-
-        if self.rooms.contains_key(room) {
-            if self.rooms[room].devices.contains(device) {
-                Result::Err(Errors::DeviceExist)
-            } else {
-                let mut t = &self.rooms[room].devices;
-                let x = Pin::new(&mut t).get_mut();
-                x.insert(device.to_string());
-                Result::Ok(true)
-            }
-            
-        } else {
-            Result::Err(Errors::RoomNotFound)
-        }    
+        let opt = self.rooms.remove(room);
+        let mut devices =match opt {
+            Some(s) => s,
+            None => return Result::Err(Errors::RoomNotFound),
+        };
+        devices.devices.insert(device.to_string());
+        self.rooms.insert(room.to_string(), devices);
+        Result::Ok(true)
     }
 
+    // pub fn remove_device(&mut self, room: &str, device: &str) -> Result<bool, Errors> {
+        
+    // }
+/*
     /// Returns devices in required room of the house
     /// ```
     /// use hw4::smart_house_dir::smart_house;
@@ -111,7 +116,7 @@ impl SmartHouse {
             Result::Err(Errors::RoomNotFound)
         }
     }
-
+*/
 /*
     /// Returns report, using user's info provider about devices state
     /// ```
@@ -192,6 +197,24 @@ mod tests {
         let all_rooms = house.get_rooms();
         assert_eq!(all_rooms.len(), 0);
     }
+
+    #[test]
+    fn test_add_device() {
+        let mut house = SmartHouse::new("My house");
+        house.add_room("Room A");
+        let res = house.add_device("Room A", "Socket 1");
+        res.unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "RoomNotFound")]
+    fn test_add_device_negative() {
+        let mut house = SmartHouse::new("My house");
+        house.add_room("Room A");
+        let res = house.add_device("Room B", "Socket 1");
+        assert_ne!(res.unwrap(), true);
+    }
+
     // #[test]
     // fn test_rooms() {
     //     let house = SmartHouse::new();

@@ -1,8 +1,6 @@
 use std::collections::{HashMap, HashSet};
-
-pub static NAME_DEV_1: &str = "Socket 1";
-pub static NAME_DEV_2: &str = "Socket 2";
-pub static NAME_DEV_3: &str = "Thermo 1";
+use std::error::Error;
+use std::fmt;
 
 #[derive(Default)]
 pub struct SmartHouse {
@@ -15,11 +13,19 @@ struct Room {
     devices: HashSet<String>,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum Errors {
+#[derive(Debug)]
+pub enum FindError {
     RoomNotFound,
     DeviceNotFound,
 }
+
+impl fmt::Display for FindError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "room or device not found")
+    }
+}
+
+impl Error for FindError {}
 
 pub trait DeviceInfoProvider {
     fn get_device_info(&self, room: &str, name: &str) -> String;
@@ -38,7 +44,7 @@ impl SmartHouse {
         }
     }
 
-    /// Adding new room, if not exists. If room already exists, nothing happens
+    /// Adding new room, if not present. If room present, nothing happens
     /// ```
     /// use hw5_6::smart_house_lib::smart_house;
     /// let mut house = smart_house::SmartHouse::new("My house");
@@ -48,16 +54,20 @@ impl SmartHouse {
         self.rooms.entry(name.to_string()).or_default();
     }
 
-    /// Delete room from house, if exists
+    /// Delete room from house, if present. Returns None, if not present
     /// ```
     /// use hw5_6::smart_house_lib::smart_house;
     /// let mut house = smart_house::SmartHouse::new("My house");
     /// house.add_room("Room A");
     /// house.remove_room("Room A");
-    /// house.remove_room("Room B");
     /// ```
-    pub fn remove_room(&mut self, name: &str) {
-        self.rooms.remove(name);
+    pub fn remove_room(&mut self, name: &str) -> Option<bool> {
+        let room = self.rooms.remove(name);
+        // match room {
+        //     Some(_) => Option::Some(true),
+        //     None => Option::None,
+        // }
+        room.map(|_| true)
     }
 
     /// Returns rooms in the house
@@ -85,11 +95,11 @@ impl SmartHouse {
     /// let res = house.add_device("Room A", "Socket 1");
     /// assert_eq!(res.unwrap(), true);
     /// ```
-    pub fn add_device(&mut self, room_name: &str, device: &str) -> Result<bool, Errors> {
+    pub fn add_device(&mut self, room_name: &str, device: &str) -> Result<bool, FindError> {
         let opt = self.rooms.remove(room_name);
         let mut room = match opt {
             Some(s) => s,
-            None => return Result::Err(Errors::RoomNotFound),
+            None => return Result::Err(FindError::RoomNotFound),
         };
         room.devices.insert(device.to_string());
         self.rooms.insert(room_name.to_string(), room);
@@ -105,18 +115,18 @@ impl SmartHouse {
     /// res.unwrap();
     /// let res1 = house.remove_device("Room A", "Socket 1");
     /// ```
-    pub fn remove_device(&mut self, room_name: &str, device: &str) -> Result<bool, Errors> {
+    pub fn remove_device(&mut self, room_name: &str, device: &str) -> Result<bool, FindError> {
         let opt = self.rooms.remove(room_name);
         let mut room = match opt {
             Some(s) => s,
-            None => return Result::Err(Errors::RoomNotFound),
+            None => return Result::Err(FindError::RoomNotFound),
         };
         let ok = room.devices.remove(device);
         self.rooms.insert(room_name.to_string(), room);
         if ok {
             Result::Ok(true)
         } else {
-            Result::Err(Errors::DeviceNotFound)
+            Result::Err(FindError::DeviceNotFound)
         }
     }
 
@@ -128,7 +138,7 @@ impl SmartHouse {
     /// house.add_device("Room A", "Socket 1");
     /// house.add_device("Room A", "Thermometer 1");
     /// ```
-    pub fn get_devices(&self, room: &str) -> Result<Vec<&str>, Errors> {
+    pub fn get_devices(&self, room: &str) -> Result<Vec<&str>, FindError> {
         if self.rooms.contains_key(room) {
             let mut devices: Vec<&str> = Vec::with_capacity(10);
             for dev_name in &self.rooms[room].devices {
@@ -136,10 +146,9 @@ impl SmartHouse {
             }
             Result::Ok(devices)
         } else {
-            Result::Err(Errors::RoomNotFound)
+            Result::Err(FindError::RoomNotFound)
         }
     }
-
 
     /// Returns report, using user's info provider about devices state
     pub fn create_report(&self, informer: &impl DeviceInfoProvider) -> String {
@@ -153,7 +162,6 @@ impl SmartHouse {
         }
         report
     }
-
 }
 
 #[cfg(test)]
@@ -179,7 +187,7 @@ mod tests {
     fn test_remove_room() {
         let mut house = SmartHouse::new("My house");
         house.add_room("Room A");
-        house.remove_room("Room A");
+        house.remove_room("Room A").unwrap();
         let all_rooms = house.get_rooms();
         assert_eq!(all_rooms.len(), 0);
     }
@@ -189,7 +197,6 @@ mod tests {
         let mut house = SmartHouse::new("My house");
         house.add_room("Room A");
         house.add_device("Room A", "Socket 1").unwrap();
-
     }
 
     #[test]
@@ -199,8 +206,6 @@ mod tests {
         house.add_room("Room A");
         house.add_device("Room B", "Socket 1").unwrap();
     }
-
-
 
     #[test]
     fn test_remove_device() {
@@ -237,7 +242,8 @@ mod tests {
         house.add_device("Room A", "Socket 1").unwrap();
         house.add_device("Room A", "Thermometer 1").unwrap();
         let devices = house.get_devices("Room A").unwrap();
-        let result = (devices == vec!["Socket 1", "Thermometer 1"]) || (devices == vec!["Thermometer 1", "Socket 1"]);
+        let result = (devices == vec!["Socket 1", "Thermometer 1"])
+            || (devices == vec!["Thermometer 1", "Socket 1"]);
         assert!(result);
     }
 
@@ -268,7 +274,7 @@ mod tests {
         house.add_room("Room A");
         house.add_device("Room A", "Socket 1").unwrap();
         let socket1 = SmartSocket {
-            name: NAME_DEV_1.to_string(),
+            name: "Socket 1".to_string(),
             state: String::from("working"),
         };
         let info_provider = OwningDeviceInfoProvider { socket: socket1 };

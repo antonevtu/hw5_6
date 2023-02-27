@@ -115,21 +115,6 @@ impl SmartHouse {
     /// res.unwrap();
     /// let res1 = house.remove_device("Room A", "Socket 1");
     /// ```
-    // pub fn remove_device(&mut self, room_name: &str, device: &str) -> Result<bool, FindError> {
-    //     let opt = self.rooms.remove(room_name);
-    //     let mut room = match opt {
-    //         Some(s) => s,
-    //         None => return Result::Err(FindError::RoomNotFound),
-    //     };
-    //     let ok = room.devices.remove(device);
-    //     self.rooms.insert(room_name.to_string(), room);
-    //     if ok {
-    //         Result::Ok(true)
-    //     } else {
-    //         Result::Err(FindError::DeviceNotFound)
-    //     }
-    // }
-
     pub fn remove_device(&mut self, room_name: &str, device: &str) -> Result<bool, FindError> {
         let opt = self.rooms.get_mut(room_name);
         let room = match opt {
